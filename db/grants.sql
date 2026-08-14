@@ -11,6 +11,8 @@ CREATE ROLE IF NOT EXISTS runbook_agent WITH LOGIN PASSWORD '<choose-a-password>
 CREATE ROLE IF NOT EXISTS remediation_agent WITH LOGIN PASSWORD '<choose-a-password>';
 CREATE ROLE IF NOT EXISTS postmortem_agent WITH LOGIN PASSWORD '<choose-a-password>';
 
+GRANT SELECT ON incidents TO triage_agent, runbook_agent, remediation_agent, postmortem_agent;
+
 GRANT CONNECT ON DATABASE cortex TO triage_agent, runbook_agent, remediation_agent, postmortem_agent;
 
 -- triage_agent: opens the incident, flips open -> triaging
