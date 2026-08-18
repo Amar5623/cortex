@@ -58,6 +58,9 @@ for REGION in us-east-1 us-west-2; do
 
   aws ssm put-parameter --region $REGION --name /cortex/crdb_mcp_endpoint \
     --type String --value "https://cockroachlabs.cloud/mcp" --overwrite
+
+  aws ssm put-parameter --region $REGION --name /cortex/admin_key \
+    --type String --value "YOUR_ADMIN_KEY" --overwrite
 done
 ```
 
@@ -162,6 +165,11 @@ aws lambda delete-function-concurrency --region us-east-1 \
 `put-function-concurrency ... 0` is worth using over actually deleting the
 function — it's instant and instantly reversible, so if the first take of
 the video isn't clean you can retry immediately instead of re-running Step 4.
+
+> **Note:** The React app's **"💥 Run kill-and-recover demo"** button on the
+> Scenarios panel now does this entire sequence for you — fire incident,
+> wait, kill region, re-fire. The manual commands above are the fallback if
+> the UI or admin key is unavailable.
 
 ## Cleanup, when you're done
 

@@ -7,7 +7,7 @@ s3_prefix = "cortex-us-east-1"
 region = "us-east-1"
 confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "GroqApiKeyParam=\"/cortex/groq_api_key\" CrdbHostParam=\"/cortex/crdb_host\" TriageAgentPasswordParam=\"/cortex/triage_agent_password\" RunbookAgentPasswordParam=\"/cortex/runbook_agent_password\" RemediationAgentPasswordParam=\"/cortex/remediation_agent_password\" PostmortemAgentPasswordParam=\"/cortex/postmortem_agent_password\" CrdbClusterIdParam=\"/cortex/crdb_cluster_id\" CrdbMcpApiKeyParam=\"/cortex/crdb_mcp_api_key\" CrdbMcpEndpointParam=\"/cortex/crdb_mcp_endpoint\""
+parameter_overrides = "GroqApiKeyParam=\"/cortex/groq_api_key\" CrdbHostParam=\"/cortex/crdb_host\" TriageAgentPasswordParam=\"/cortex/triage_agent_password\" RunbookAgentPasswordParam=\"/cortex/runbook_agent_password\" RemediationAgentPasswordParam=\"/cortex/remediation_agent_password\" PostmortemAgentPasswordParam=\"/cortex/postmortem_agent_password\" CrdbClusterIdParam=\"/cortex/crdb_cluster_id\" CrdbMcpApiKeyParam=\"/cortex/crdb_mcp_api_key\" CrdbMcpEndpointParam=\"/cortex/crdb_mcp_endpoint\" AdminKeyParam=\"/cortex/admin_key\""
 image_repositories = []
 
 [default.global.parameters]
@@ -20,7 +20,7 @@ s3_prefix = "cortex-us-west-2"
 region = "us-west-2"
 confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "GroqApiKeyParam=\"/cortex/groq_api_key\" CrdbHostParam=\"/cortex/crdb_host\" TriageAgentPasswordParam=\"/cortex/triage_agent_password\" RunbookAgentPasswordParam=\"/cortex/runbook_agent_password\" RemediationAgentPasswordParam=\"/cortex/remediation_agent_password\" PostmortemAgentPasswordParam=\"/cortex/postmortem_agent_password\" CrdbClusterIdParam=\"/cortex/crdb_cluster_id\" CrdbMcpApiKeyParam=\"/cortex/crdb_mcp_api_key\" CrdbMcpEndpointParam=\"/cortex/crdb_mcp_endpoint\""
+parameter_overrides = "GroqApiKeyParam=\"/cortex/groq_api_key\" CrdbHostParam=\"/cortex/crdb_host\" TriageAgentPasswordParam=\"/cortex/triage_agent_password\" RunbookAgentPasswordParam=\"/cortex/runbook_agent_password\" RemediationAgentPasswordParam=\"/cortex/remediation_agent_password\" PostmortemAgentPasswordParam=\"/cortex/postmortem_agent_password\" CrdbClusterIdParam=\"/cortex/crdb_cluster_id\" CrdbMcpApiKeyParam=\"/cortex/crdb_mcp_api_key\" CrdbMcpEndpointParam=\"/cortex/crdb_mcp_endpoint\" AdminKeyParam=\"/cortex/admin_key\""
 image_repositories = []
 
 [west.global.parameters]

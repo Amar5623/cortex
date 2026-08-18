@@ -37,3 +37,13 @@ GRANT INSERT ON mcp_audit_log TO postmortem_agent;
 -- incident_locks -- that exclusivity is itself part of the story: even a
 -- compromised or misbehaving triage/runbook/postmortem agent structurally
 -- cannot forge a lock.
+
+
+
+-- dashboard_reader: read-only role for dashboard/app.py (Streamlit mission
+-- control). SELECT-only across all 6 tables -- no INSERT/UPDATE/DELETE
+-- anywhere, so a compromised or buggy dashboard session can't mutate
+-- incident state, forge events, or tamper with the audit log.
+CREATE ROLE IF NOT EXISTS dashboard_reader WITH LOGIN PASSWORD '<choose-a-password>';
+GRANT CONNECT ON DATABASE cortex TO dashboard_reader;
+GRANT SELECT ON incidents, incident_locks, incident_events, runbooks, postmortems, mcp_audit_log TO dashboard_reader;

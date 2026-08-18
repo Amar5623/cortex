@@ -37,6 +37,9 @@ Parameters:
   CrdbMcpEndpointParam:
     Type: AWS::SSM::Parameter::Value<String>
     Default: /cortex/crdb_mcp_endpoint
+  AdminKeyParam:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /cortex/admin_key
 
 Globals:
   Function:
@@ -65,20 +68,42 @@ Resources:
           CRDB_CLUSTER_ID: !Ref CrdbClusterIdParam
           CRDB_MCP_API_KEY: !Ref CrdbMcpApiKeyParam
           CRDB_MCP_ENDPOINT: !Ref CrdbMcpEndpointParam
+          ADMIN_KEY: !Ref AdminKeyParam
       FunctionUrlConfig:
         AuthType: NONE
         # AuthType NONE is fine for a hackathon demo you're triggering
         # yourself/showing on camera. Worth one honest line in the README:
         # a production version would use AWS_IAM or an app-level auth check.
+        Cors:
+          AllowOrigins:
+            - "*"
+          AllowMethods:
+            - GET
+            - POST
+          AllowHeaders:
+            - content-type
+            - x-cortex-admin-key
+          # AllowOrigins "*" is deliberately permissive for tonight -- call
+          # this out in the README as a known, intentional shortcut (scope
+          # to the real hosted frontend domain once the React app is on
+          # Vercel/Netlify). Not hiding it.
       Tags:
         Project: cortex
         Region: !Ref AWS::Region
-      # No extra IAM policies needed: this function never touches S3 at
-      # request time (only the one-time local seed_runbooks.py script does),
-      # and fastembed runs entirely in-process -- no Bedrock permission
-      # needed either. Default SAM-generated execution role (CloudWatch
-      # Logs only) is sufficient. Revisit this line if that assumption
-      # ever changes.
+      # IAM policies for the kill/restore-region admin endpoints: the
+      # Lambda execution role needs to call PutFunctionConcurrency and
+      # DeleteFunctionConcurrency on BOTH regions' functions (cross-region
+      # ARNs are just strings in an IAM policy — no Fn::GetAtt needed).
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - lambda:PutFunctionConcurrency
+                - lambda:DeleteFunctionConcurrency
+                - lambda:GetFunction
+              Resource:
+                - !Sub arn:aws:lambda:us-east-1:${AWS::AccountId}:function:cortex-agent-us-east-1
+                - !Sub arn:aws:lambda:us-west-2:${AWS::AccountId}:function:cortex-agent-us-west-2
 
 Outputs:
   FunctionUrl:

@@ -97,13 +97,15 @@ class IncidentState(TypedDict, total=False):
 
 
 def _rows_from_result(result) -> list[dict]:
-    """Best-effort extraction of row dicts from a select_query CallToolResult.
-    UNVERIFIED against a live call from this session -- confirmed live in
-    test_sql_builder.py previously, but the exact shape wasn't pasted back
-    here. If this raises or returns garbage, paste the raw `result` object
-    (repr or result.content) from a live select() call and this gets fixed
-    to match exactly.
-    """
+    """Extraction of row dicts from select_query CallToolResult or direct fallback SQL results."""
+    if isinstance(result, list):
+        return result
+    if isinstance(result, dict):
+        if "rows" in result:
+            return result["rows"]
+        if "incidents" in result:
+            return result["incidents"]
+        return [result]
     import json as _json
     content = getattr(result, "content", None) or []
     for block in content:
@@ -119,8 +121,31 @@ def _rows_from_result(result) -> list[dict]:
                 return parsed["rows"]
     return []
 
-
 async def ingest_node(state: IncidentState) -> dict:
+    # Idempotent on fingerprint: if an incident with this fingerprint is
+    # already open (not resolved/closed), reuse its incident_id instead of
+    # minting a new one. This is what makes "retry the same alert against
+    # a different region" actually contend for the SAME lock, instead of
+    # silently creating a second, unlocked incident.
+    existing = await mcp_client.select(
+        "cortex", "incidents",
+        where={"fingerprint": state["fingerprint"]},
+        columns="incident_id",
+        extra_sql="AND status NOT IN ('resolved','closed') ORDER BY created_at DESC LIMIT 1",
+    )
+    existing_rows = _rows_from_result(existing)
+    if existing_rows:
+        incident_id = existing_rows[0]["incident_id"]
+        await mcp_client.insert("cortex", "incident_events", [{
+            "incident_id": incident_id,
+            "agent_name": "ingest",
+            "agent_instance_id": state["agent_instance_id"],
+            "agent_region": state["agent_region"],
+            "event_type": "incident_retriggered",
+            "payload": {"fingerprint": state["fingerprint"]},
+        }])
+        return {"incident_id": incident_id}
+
     incident_id = str(uuid.uuid4())
     await mcp_client.insert("cortex", "incidents", [{
         "incident_id": incident_id,
@@ -134,13 +159,8 @@ async def ingest_node(state: IncidentState) -> dict:
     }])
     await mcp_client.insert("cortex", "incident_locks", [{
         "incident_id": incident_id,
-        "locked_by_agent": None,
-        "locked_by_instance": None,
-        "locked_by_region": None,
-        "lock_token": None,
-        "acquired_at": None,
-        "lease_expires_at": None,
-        "released_at": None,
+        "locked_by_agent": None, "locked_by_instance": None, "locked_by_region": None,
+        "lock_token": None, "acquired_at": None, "lease_expires_at": None, "released_at": None,
     }])
     await mcp_client.insert("cortex", "incident_events", [{
         "incident_id": incident_id,
@@ -152,10 +172,21 @@ async def ingest_node(state: IncidentState) -> dict:
     }])
     return {"incident_id": incident_id}
 
-
 async def triage_node(state: IncidentState) -> dict:
-    """Read-only: has this fingerprint been seen before? No writes here —
-    see module docstring for why."""
+    """Read-only for incident state -- no status writes here, see module
+    docstring for why. Still writes its own live trace event to
+    incident_events via the shared MCP service account (cortex-mcp-agent),
+    the same mcp_client.insert() pattern ingest_node/merge_node already use
+    in production -- this is not a per-agent SQL role write, so it needs no
+    new grant in grants.sql."""
+    await mcp_client.insert("cortex", "incident_events", [{
+        "incident_id": state["incident_id"],
+        "agent_name": "triage",
+        "agent_instance_id": state["agent_instance_id"],
+        "agent_region": state["agent_region"],
+        "event_type": "triage_started",
+        "payload": {},
+    }])
     result = await mcp_client.select(
         "cortex", "incidents",
         where={"fingerprint": state["fingerprint"]},
@@ -163,12 +194,32 @@ async def triage_node(state: IncidentState) -> dict:
     )
     rows = _rows_from_result(result)
     prior_ids = [r["incident_id"] for r in rows]
-    return {"seen_before": len(prior_ids) > 0, "prior_incident_ids": prior_ids}
+    seen_before = len(prior_ids) > 0
 
+    await mcp_client.insert("cortex", "incident_events", [{
+        "incident_id": state["incident_id"],
+        "agent_name": "triage",
+        "agent_instance_id": state["agent_instance_id"],
+        "agent_region": state["agent_region"],
+        "event_type": "triage_completed",
+        "payload": {"seen_before": seen_before, "prior_incident_ids": prior_ids},
+    }])
+
+    return {"seen_before": seen_before, "prior_incident_ids": prior_ids}
 
 async def runbook_node(state: IncidentState) -> dict:
-    """Read-only: vector search over runbooks and postmortems for relevant
-    prior fixes. No writes here — see module docstring for why."""
+    """Read-only for incident state -- no status writes here, see module
+    docstring. Vector search over runbooks and postmortems for relevant
+    prior fixes, then writes its own live trace event the same way
+    triage_node does."""
+    await mcp_client.insert("cortex", "incident_events", [{
+        "incident_id": state["incident_id"],
+        "agent_name": "runbook",
+        "agent_instance_id": state["agent_instance_id"],
+        "agent_region": state["agent_region"],
+        "event_type": "runbook_started",
+        "payload": {},
+    }])
     query_text = f"{state['title']} {state['service_name']}"
     embedding = embed_text(query_text)
     vector_literal = mcp_client.format_vector(embedding)
@@ -184,11 +235,22 @@ async def runbook_node(state: IncidentState) -> dict:
         columns="postmortem_id, incident_id, summary, root_cause, remediation_taken",
         extra_sql=f"ORDER BY embedding <-> {vector_literal} LIMIT 3",
     )
-    return {
-        "matched_runbooks": _rows_from_result(runbook_result),
-        "matched_postmortems": _rows_from_result(postmortem_result),
-    }
+    matched_runbooks = _rows_from_result(runbook_result)
+    matched_postmortems = _rows_from_result(postmortem_result)
 
+    await mcp_client.insert("cortex", "incident_events", [{
+        "incident_id": state["incident_id"],
+        "agent_name": "runbook",
+        "agent_instance_id": state["agent_instance_id"],
+        "agent_region": state["agent_region"],
+        "event_type": "runbook_completed",
+        "payload": {"matched_runbook_ids": [r.get("runbook_id") for r in matched_runbooks]},
+    }])
+
+    return {
+        "matched_runbooks": matched_runbooks,
+        "matched_postmortems": matched_postmortems,
+    }
 
 async def merge_node(state: IncidentState) -> dict:
     """Single writer, runs once both triage_node and runbook_node have
@@ -226,12 +288,28 @@ async def remediation_node(state: IncidentState) -> dict:
     status diagnosing->remediating, applies a Groq-generated remediation,
     then remediating->resolved. If the lock is already held by a live
     instance, this returns without acting -- no double-act."""
+    await mcp_client.insert("cortex", "incident_events", [{
+        "incident_id": state["incident_id"],
+        "agent_name": "remediation",
+        "agent_instance_id": state["agent_instance_id"],
+        "agent_region": state["agent_region"],
+        "event_type": "remediation_lock_attempt",
+        "payload": {},
+    }])
     pool = await db.get_pool("remediation_agent")
     token = await db.acquire_or_steal_lock(
         pool, state["incident_id"], "remediation_agent",
         state["agent_instance_id"], state["agent_region"],
     )
     if token is None:
+        await mcp_client.insert("cortex", "incident_events", [{
+            "incident_id": state["incident_id"],
+            "agent_name": "remediation",
+            "agent_instance_id": state["agent_instance_id"],
+            "agent_region": state["agent_region"],
+            "event_type": "remediation_stood_down",
+            "payload": {"reason": "lock held by another live instance"},
+        }])
         return {"lock_token": None, "remediation_notes": "lock held by another live instance; not acting"}
 
     # Tell the handler's heartbeat loop what to renew. This dict is the
@@ -277,8 +355,16 @@ async def remediation_node(state: IncidentState) -> dict:
     if _heartbeat_lock_state is not None:
         _heartbeat_lock_state.clear()
 
-    return {"lock_token": str(token), "remediation_notes": remediation_notes}
+    await mcp_client.insert("cortex", "incident_events", [{
+        "incident_id": state["incident_id"],
+        "agent_name": "remediation",
+        "agent_instance_id": state["agent_instance_id"],
+        "agent_region": state["agent_region"],
+        "event_type": "remediation_completed",
+        "payload": {"remediation_notes": remediation_notes, "lock_token": str(token)},
+    }])
 
+    return {"lock_token": str(token), "remediation_notes": remediation_notes}
 
 async def postmortem_node(state: IncidentState) -> dict:
     """Writes the postmortem (becomes searchable context for the next
@@ -290,6 +376,15 @@ async def postmortem_node(state: IncidentState) -> dict:
         # remediation_node didn't act (lock contention) — nothing to
         # write a postmortem about yet.
         return {"postmortem_id": None}
+
+    await mcp_client.insert("cortex", "incident_events", [{
+        "incident_id": state["incident_id"],
+        "agent_name": "postmortem",
+        "agent_instance_id": state["agent_instance_id"],
+        "agent_region": state["agent_region"],
+        "event_type": "postmortem_started",
+        "payload": {},
+    }])
 
     events_result = await mcp_client.select(
         "cortex", "incident_events",
@@ -326,6 +421,15 @@ async def postmortem_node(state: IncidentState) -> dict:
 
     pool = await db.get_pool("postmortem_agent")
     await db.close_incident(pool, state["incident_id"], "postmortem_agent", state["agent_instance_id"])
+
+    await mcp_client.insert("cortex", "incident_events", [{
+        "incident_id": state["incident_id"],
+        "agent_name": "postmortem",
+        "agent_instance_id": state["agent_instance_id"],
+        "agent_region": state["agent_region"],
+        "event_type": "postmortem_written",
+        "payload": {"postmortem_id": postmortem_id},
+    }])
 
     return {"postmortem_id": postmortem_id}
 

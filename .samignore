@@ -1,5 +1,20 @@
 # Excluded from SAM build to keep the Lambda package small.
-# Only agents/, requirements.txt, and supporting files are needed.
+# Only agents/, requirements.txt, and supporting files are needed at runtime.
+
+# Frontend — entirely separate deployment, not used by Lambda
+cortex-frontend/
+
+# Dashboard — local-only Streamlit app
+dashboard/
+
+# Scripts — one-time setup scripts, not needed at runtime
+scripts/
+
+# Tests
+tests/
+test_*.py
+
+# Dev/build artifacts
 venv/
 .venv/
 .git/
@@ -8,11 +23,17 @@ venv/
 .env.example
 __pycache__/
 *.pyc
-db/
-test_*.py
-seed_runbooks.py
+.aws-sam/
+
+# Docs & config that aren't needed at runtime
 DEPLOY.md
 LICENSE
 README.md
-.aws-sam/
 samconfig.toml
+
+# Raw model cache -- compressed tar.gz created by deploy_aws.sh into build target
+model_cache/
+
+# One-time seed script
+seed_runbooks.py
+verify_select_shape.py

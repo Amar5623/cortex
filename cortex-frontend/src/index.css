@@ -1,0 +1,410 @@
+/* src/index.css — Night Ops Cartography & Blueprint Grid Theme */
+
+:root {
+  /* Core Brand & Canvas Colors */
+  --bg: #0A0E17;
+  --panel: #111827;
+  --panel-2: #1F2937;
+  --border: #374151;
+  --border-light: rgba(255, 255, 255, 0.08);
+
+  /* Typography Colors */
+  --text: #F9FAFB;
+  --text-dim: #9CA3AF;
+  --text-sub: #6B7280;
+  --ink: #0A0E17;
+
+  /* Transit Line & Interchange Accents */
+  --line-east: #FF6A3D;       /* Warm International Orange */
+  --line-west: #2FD4E8;       /* High-Vis Cyan */
+  --interchange: #F3EEE1;     /* Warm Paper White for CockroachDB */
+  --done: #EAE6D9;            /* Completed Segment Fill */
+  --pending: #374151;         /* Inactive Segment Track */
+  --alert: #FF3B5C;           /* Sev1 Alert Red */
+
+  /* Fonts */
+  --font-display: "Archivo", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", Consolas, Monaco, monospace;
+
+  /* UI Radii & Shadows */
+  --radius-sm: 4px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+  --glow-east: 0 0 20px rgba(255, 106, 61, 0.35);
+  --glow-west: 0 0 20px rgba(47, 212, 232, 0.35);
+}
+
+/* Reset & Global Canvas */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Blueprint Grid Background Pattern */
+body {
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: -1px -1px;
+}
+
+/* App Layout Containers */
+.cx-app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Topbar Header */
+.cx-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.cx-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cx-brand-logo {
+  font-size: 24px;
+  background: var(--panel-2);
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.cx-brand-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--text);
+}
+
+.cx-brand-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--line-east);
+  letter-spacing: 0.1em;
+}
+
+.cx-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Home & Hero Landing Page Styles */
+.cx-home-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 24px;
+}
+
+.cx-hero-section {
+  text-align: center;
+  margin-bottom: 64px;
+}
+
+.cx-hero-title {
+  font-family: var(--font-display);
+  font-size: 2.75rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--text);
+  max-width: 860px;
+  margin: 0 auto 20px auto;
+}
+
+.cx-hero-subtitle {
+  font-size: 1.125rem;
+  color: var(--text-dim);
+  max-width: 720px;
+  margin: 0 auto 32px auto;
+  line-height: 1.6;
+}
+
+.cx-section {
+  margin-bottom: 64px;
+}
+
+.cx-section-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.cx-section-desc {
+  color: var(--text-dim);
+  font-size: 1rem;
+  margin-bottom: 24px;
+  max-width: 760px;
+}
+
+/* Panel & Card Containers */
+.cx-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+
+.cx-panel-2 {
+  background: var(--panel-2);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+}
+
+.cx-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 12px;
+}
+
+.cx-panel-title {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cx-panel-subtitle {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* SVG Line Map Wrapper */
+.cx-line-map-wrapper {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  box-shadow: var(--shadow);
+  position: relative;
+}
+
+/* Buttons */
+.cx-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  transition: all 0.15s ease;
+}
+
+.cx-btn:hover {
+  background: #374151;
+  border-color: #4B5563;
+}
+
+.cx-btn-primary {
+  background: var(--line-east);
+  border-color: var(--line-east);
+  color: #FFF;
+}
+
+.cx-btn-primary:hover {
+  background: #E55A2F;
+  border-color: #E55A2F;
+}
+
+.cx-btn-secondary {
+  background: rgba(47, 212, 232, 0.15);
+  border-color: var(--line-west);
+  color: var(--line-west);
+}
+
+.cx-btn-secondary:hover {
+  background: rgba(47, 212, 232, 0.25);
+}
+
+.cx-btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-dim);
+}
+
+.cx-btn-ghost:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.cx-btn-sm {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+/* Badges */
+.cx-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.cx-badge-open {
+  background: rgba(255, 59, 92, 0.15);
+  color: var(--alert);
+  border-color: rgba(255, 59, 92, 0.3);
+}
+
+.cx-badge-remediating {
+  background: rgba(255, 106, 61, 0.15);
+  color: var(--line-east);
+  border-color: rgba(255, 106, 61, 0.3);
+}
+
+.cx-badge-closed {
+  background: rgba(46, 213, 115, 0.15);
+  color: #2ED573;
+  border-color: rgba(46, 213, 115, 0.3);
+}
+
+.cx-badge-alert {
+  background: rgba(255, 59, 92, 0.2);
+  color: var(--alert);
+  border-color: var(--alert);
+  font-weight: 700;
+}
+
+/* Tables */
+.cx-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+
+.cx-table th {
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+
+.cx-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.cx-table tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+}
+
+.cx-table tr.selected {
+  background: rgba(47, 212, 232, 0.08);
+}
+
+/* Keyframe Animations */
+@keyframes beamPulse {
+  0% { stroke-dashoffset: 20; opacity: 0.4; }
+  50% { opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0.4; }
+}
+
+@keyframes pulseGlow {
+  0% { opacity: 0.8; }
+  100% { opacity: 1; box-shadow: 0 0 16px rgba(255, 59, 92, 0.6); }
+}
+
+.cx-animated-dash {
+  animation: beamPulse 1.2s linear infinite;
+}
+
+.cx-station-node {
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.cx-station-node:hover {
+  transform: scale(1.15);
+}
+
+.cx-station-label {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 12px;
+}
+
+/* Code Pre Blocks */
+pre {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-sub);
+}

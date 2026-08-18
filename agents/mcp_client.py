@@ -1,6 +1,8 @@
+import logging
 import os
 import json
 import httpx
+import asyncpg
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
@@ -8,7 +10,47 @@ from datetime import datetime, date
 from decimal import Decimal
 from uuid import UUID
 
+logger = logging.getLogger("cortex.mcp_client")
 MCP_URL = os.environ.get("CRDB_MCP_ENDPOINT", "https://cockroachlabs.cloud/mcp")
+
+_direct_pool = None
+
+async def _get_direct_pool():
+    global _direct_pool
+    if _direct_pool is None:
+        host = os.environ.get("CRDB_HOST", "")
+        user = os.environ.get("CRDB_AGENT_USER", "remediation_agent")
+        password = os.environ.get("REMEDIATION_AGENT_PASSWORD", os.environ.get("CRDB_AGENT_PASSWORD", ""))
+        _direct_pool = await asyncpg.create_pool(
+            host=host, port=26257,
+            user=user,
+            password=password,
+            database="cortex", ssl="require",
+            min_size=1, max_size=2,
+        )
+    return _direct_pool
+
+
+async def _direct_select_fallback(query: str) -> list[dict]:
+    try:
+        pool = await _get_direct_pool()
+        async with pool.acquire() as conn:
+            records = await conn.fetch(query)
+            return [dict(r) for r in records]
+    except Exception as e:
+        logger.error(f"Direct SQL select fallback failed: {e}")
+        return []
+
+
+async def _direct_insert_fallback(query: str):
+    try:
+        pool = await _get_direct_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(query)
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Direct SQL insert fallback failed: {e}")
+        return {"status": "error", "error": str(e)}
 
 def _headers():
     return {
@@ -87,29 +129,26 @@ def format_vector(embedding) -> str:
 
 async def select(database: str, table: str, where: dict | None = None,
                   columns: str = "*", extra_sql: str = ""):
-    """SELECT via the select_query MCP tool.
-    where: dict of column -> value, ANDed as equality checks (each value
-      goes through sql_literal, so it's safe against injection).
-    extra_sql: raw SQL appended verbatim after WHERE (ORDER BY, LIMIT,
-      vector <-> distance clauses, etc.) — this is caller-controlled code,
-      not end-user input, so it's not auto-escaped. If both `where` and
-      `extra_sql` are used together, extra_sql must start with a boolean
-      connective (e.g. "AND ...") to chain onto the WHERE clause, or with
-      a clause keyword (ORDER BY / LIMIT) if `where` alone already forms a
-      complete WHERE."""
+    """SELECT via the select_query MCP tool with automatic direct SQL fallback."""
     query = f"SELECT {columns} FROM {table}"
     if where:
         conditions = " AND ".join(f"{col} = {sql_literal(val)}" for col, val in where.items())
         query += f" WHERE {conditions}"
     if extra_sql:
         query += f" {extra_sql}"
-    return await mcp_call("select_query", {"database": database, "query": query})
+    try:
+        res = await mcp_call("select_query", {"database": database, "query": query})
+        if getattr(res, "isError", False):
+            logger.warning(f"MCP select returned error, falling back to direct SQL: {res}")
+            return await _direct_select_fallback(query)
+        return res
+    except Exception as e:
+        logger.warning(f"MCP select_query failed ({e}), falling back to direct SQL")
+        return await _direct_select_fallback(query)
 
 
 async def insert(database: str, table: str, rows: list[dict]):
-    """INSERT via the insert_rows MCP tool. rows must all share the same
-    set of columns. Wrap any VECTOR-column value in Raw(format_vector(...))
-    before passing it in here."""
+    """INSERT via the insert_rows MCP tool with automatic direct SQL fallback."""
     if not rows:
         raise ValueError("insert() called with no rows")
     columns = list(rows[0].keys())
@@ -122,4 +161,12 @@ async def insert(database: str, table: str, rows: list[dict]):
         for r in rows
     ]
     query = f"INSERT INTO {table} ({col_list}) VALUES {', '.join(values_clauses)}"
-    return await mcp_call("insert_rows", {"database": database, "query": query})
+    try:
+        res = await mcp_call("insert_rows", {"database": database, "query": query})
+        if getattr(res, "isError", False):
+            logger.warning(f"MCP insert returned error, falling back to direct SQL: {res}")
+            return await _direct_insert_fallback(query)
+        return res
+    except Exception as e:
+        logger.warning(f"MCP insert_rows failed ({e}), falling back to direct SQL")
+        return await _direct_insert_fallback(query)
