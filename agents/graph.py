@@ -56,6 +56,15 @@ from agents.mcp_client import Raw
 from agents.embeddings import embed_text
 from agents import llm
 
+# Shared mutable dict for the heartbeat side-channel. The Lambda handler
+# creates this and passes it to run_incident(), which stores it here.
+# remediation_node writes {pool, incident_id, token} into it after
+# acquiring the lock, and clears it after releasing. The handler's
+# background heartbeat loop reads from the same dict to call renew_lock.
+# This works because Lambda runs one request per execution environment
+# at a time (same event loop, same process).
+_heartbeat_lock_state: dict | None = None
+
 
 class IncidentState(TypedDict, total=False):
     # set by caller before invocation
@@ -225,6 +234,14 @@ async def remediation_node(state: IncidentState) -> dict:
     if token is None:
         return {"lock_token": None, "remediation_notes": "lock held by another live instance; not acting"}
 
+    # Tell the handler's heartbeat loop what to renew. This dict is the
+    # same object the handler created and passed to run_incident() —
+    # mutating it here is visible to the heartbeat immediately.
+    if _heartbeat_lock_state is not None:
+        _heartbeat_lock_state["pool"] = pool
+        _heartbeat_lock_state["incident_id"] = state["incident_id"]
+        _heartbeat_lock_state["token"] = token
+
     await db.fenced_status_update(pool, state["incident_id"], token, "remediating")
 
     incident = {
@@ -255,6 +272,10 @@ async def remediation_node(state: IncidentState) -> dict:
     # lock only ever clears via the 20s lease timeout, which is correct
     # behavior for the kill-demo but wrong for every other successful run.
     await db.release_lock(pool, state["incident_id"], token)
+
+    # Clear the heartbeat side-channel so the handler stops renewing.
+    if _heartbeat_lock_state is not None:
+        _heartbeat_lock_state.clear()
 
     return {"lock_token": str(token), "remediation_notes": remediation_notes}
 
@@ -330,9 +351,22 @@ def build_graph() -> StateGraph:
     return g
 
 
-async def run_incident(alert: dict, agent_instance_id: str, agent_region: str) -> IncidentState:
+async def run_incident(
+    alert: dict,
+    agent_instance_id: str,
+    agent_region: str,
+    lock_state: dict | None = None,
+) -> IncidentState:
     """Entry point. alert must have: fingerprint, title, service_name,
-    severity, and optionally origin_region (defaults to agent_region)."""
+    severity, and optionally origin_region (defaults to agent_region).
+
+    lock_state: if provided, a mutable dict that remediation_node will
+    populate with {pool, incident_id, token} while a lock is held, so
+    the caller's heartbeat loop can call renew_lock. Cleared by
+    remediation_node after the lock is released."""
+    global _heartbeat_lock_state
+    _heartbeat_lock_state = lock_state
+
     graph = build_graph()
     # No checkpointer passed — deliberate, see module docstring.
     compiled = graph.compile()
@@ -347,5 +381,8 @@ async def run_incident(alert: dict, agent_instance_id: str, agent_region: str) -
         "agent_instance_id": agent_instance_id,
         "agent_region": agent_region,
     }
-    final_state = await compiled.ainvoke(initial_state)
+    try:
+        final_state = await compiled.ainvoke(initial_state)
+    finally:
+        _heartbeat_lock_state = None
     return final_state

@@ -1,0 +1,18 @@
+# Excluded from SAM build to keep the Lambda package small.
+# Only agents/, requirements.txt, and supporting files are needed.
+venv/
+.venv/
+.git/
+.gitignore
+.env
+.env.example
+__pycache__/
+*.pyc
+db/
+test_*.py
+seed_runbooks.py
+DEPLOY.md
+LICENSE
+README.md
+.aws-sam/
+samconfig.toml

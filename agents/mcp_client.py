@@ -2,36 +2,31 @@ import os
 import json
 import httpx
 from mcp import ClientSession
-from mcp.client.streamable_http import streamable_http_client
+from mcp.client.streamable_http import streamablehttp_client
 
 from datetime import datetime, date
 from decimal import Decimal
 from uuid import UUID
 
-MCP_URL = "https://cockroachlabs.cloud/mcp"
+MCP_URL = os.environ.get("CRDB_MCP_ENDPOINT", "https://cockroachlabs.cloud/mcp")
 
-def _http_client():
-    return httpx.AsyncClient(
-        headers={
-            "mcp-cluster-id": os.environ["CRDB_CLUSTER_ID"],
-            "Authorization": f"Bearer {os.environ['CRDB_MCP_API_KEY']}",
-        },
-        timeout=30.0,
-    )
+def _headers():
+    return {
+        "mcp-cluster-id": os.environ.get("CRDB_CLUSTER_ID", ""),
+        "Authorization": f"Bearer {os.environ.get('CRDB_MCP_API_KEY', '')}",
+    }
 
 async def mcp_call(tool_name: str, arguments: dict):
-    async with _http_client() as http_client:
-        async with streamable_http_client(MCP_URL, http_client=http_client) as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                return await session.call_tool(tool_name, arguments)
+    async with streamablehttp_client(MCP_URL, headers=_headers()) as (read, write, *_):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            return await session.call_tool(tool_name, arguments)
 
 async def list_available_tools():
-    async with _http_client() as http_client:
-        async with streamable_http_client(MCP_URL, http_client=http_client) as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                return await session.list_tools()
+    async with streamablehttp_client(MCP_URL, headers=_headers()) as (read, write, *_):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            return await session.list_tools()
 
 
 # --- Safe SQL-string builder ---

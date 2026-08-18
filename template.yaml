@@ -1,0 +1,89 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Cortex incident-response agent. Deployed as this exact same template into
+  two regions (us-east-1, us-west-2) -- both point at the same multi-region
+  CockroachDB cluster, which is the only thing that actually links them.
+
+# Each of these SSM parameters must exist in whichever region you're
+# deploying to -- SSM Parameter Store is regional, CloudFormation resolves
+# these at deploy time from the region the stack is being deployed into.
+# See DEPLOY.md step 1.
+Parameters:
+  GroqApiKeyParam:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /cortex/groq_api_key
+  CrdbHostParam:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /cortex/crdb_host
+  TriageAgentPasswordParam:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /cortex/triage_agent_password
+  RunbookAgentPasswordParam:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /cortex/runbook_agent_password
+  RemediationAgentPasswordParam:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /cortex/remediation_agent_password
+  PostmortemAgentPasswordParam:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /cortex/postmortem_agent_password
+  CrdbClusterIdParam:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /cortex/crdb_cluster_id
+  CrdbMcpApiKeyParam:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /cortex/crdb_mcp_api_key
+  CrdbMcpEndpointParam:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /cortex/crdb_mcp_endpoint
+
+Globals:
+  Function:
+    Timeout: 90        # a full graph run = 2 DB reads + 2 Groq calls + several writes;
+                        # default 3s will truncate real runs, not just slow ones
+    MemorySize: 1024
+    Runtime: python3.14 # matches your dev machine; confirmed as a supported
+                        # Lambda managed runtime (added Nov 2025)
+    Architectures: [x86_64]
+
+Resources:
+  CortexFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub cortex-agent-${AWS::Region}
+      CodeUri: .
+      Handler: agents.lambda_handler.handler
+      Environment:
+        Variables:
+          GROQ_API_KEY: !Ref GroqApiKeyParam
+          CRDB_HOST: !Ref CrdbHostParam
+          TRIAGE_AGENT_PASSWORD: !Ref TriageAgentPasswordParam
+          RUNBOOK_AGENT_PASSWORD: !Ref RunbookAgentPasswordParam
+          REMEDIATION_AGENT_PASSWORD: !Ref RemediationAgentPasswordParam
+          POSTMORTEM_AGENT_PASSWORD: !Ref PostmortemAgentPasswordParam
+          CRDB_CLUSTER_ID: !Ref CrdbClusterIdParam
+          CRDB_MCP_API_KEY: !Ref CrdbMcpApiKeyParam
+          CRDB_MCP_ENDPOINT: !Ref CrdbMcpEndpointParam
+      FunctionUrlConfig:
+        AuthType: NONE
+        # AuthType NONE is fine for a hackathon demo you're triggering
+        # yourself/showing on camera. Worth one honest line in the README:
+        # a production version would use AWS_IAM or an app-level auth check.
+      Tags:
+        Project: cortex
+        Region: !Ref AWS::Region
+      # No extra IAM policies needed: this function never touches S3 at
+      # request time (only the one-time local seed_runbooks.py script does),
+      # and fastembed runs entirely in-process -- no Bedrock permission
+      # needed either. Default SAM-generated execution role (CloudWatch
+      # Logs only) is sufficient. Revisit this line if that assumption
+      # ever changes.
+
+Outputs:
+  FunctionUrl:
+    Description: Public HTTPS endpoint for this region's Cortex agent
+    Value: !GetAtt CortexFunctionUrl.FunctionUrl
+  FunctionArn:
+    Description: ARN, useful for the kill-and-recover demo (disabling/deleting this region's function on camera)
+    Value: !GetAtt CortexFunction.Arn
