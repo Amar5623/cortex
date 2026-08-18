@@ -16,7 +16,7 @@
 
 <p align="center">
   <a href="https://cortex-sre.vercel.app"><strong>🌐 Live Demo</strong></a> ·
-  <a href="YOUR_YOUTUBE_URL_HERE"><strong>🎬 Demo Video</strong></a> ·
+  <a href="https://youtu.be/34qlBkwNzJU"><strong>🎬 Demo Video</strong></a> ·
   <a href="#architecture"><strong>📐 Architecture</strong></a> ·
   <a href="#getting-started"><strong>🚀 Setup</strong></a>
 </p>
@@ -264,7 +264,7 @@ This is the demo that proves CockroachDB-backed agentic memory is real, not theo
 | | Link |
 |---|---|
 | **Live App** | [https://cortex-sre.vercel.app](https://cortex-sre.vercel.app) |
-| **Demo Video** (< 3 min) | [▶️ Watch on YouTube](YOUR_YOUTUBE_URL_HERE) |
+| **Demo Video** (< 3 min) | [▶️ Watch on YouTube](https://youtu.be/34qlBkwNzJU) |
 
 > **To try the live demo:** Navigate to the **Console** → Use the **Live Demo Scenarios** panel to trigger a scenario → Watch the transit map animate the agent DAG in real-time as events stream from CockroachDB.
 
