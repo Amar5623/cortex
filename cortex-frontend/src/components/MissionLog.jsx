@@ -1,4 +1,6 @@
 // src/components/MissionLog.jsx
+import { useState } from "react";
+
 const EVENT_ICON = {
   incident_created: "🆕",
   incident_retriggered: "🔁",
@@ -23,7 +25,11 @@ function fmtTime(iso) {
   }
 }
 
+const PAGE_SIZE = 8;
+
 export default function MissionLog({ events = [], auditLog = [], loading }) {
+  const [page, setPage] = useState(0);
+
   const rows = [];
 
   for (const e of events) {
@@ -60,6 +66,10 @@ export default function MissionLog({ events = [], auditLog = [], loading }) {
 
   rows.sort((x, y) => new Date(y.ts) - new Date(x.ts));
 
+  const totalPages = Math.ceil(rows.length / PAGE_SIZE) || 1;
+  const safePage = Math.min(page, totalPages - 1);
+  const displayRows = rows.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+
   return (
     <div className="cx-panel">
       <div className="cx-panel-header">
@@ -72,8 +82,7 @@ export default function MissionLog({ events = [], auditLog = [], loading }) {
       <div
         className="cx-panel-2"
         style={{
-          maxHeight: 220,
-          overflowY: "auto",
+          minHeight: 180,
           fontFamily: "var(--font-mono)",
           fontSize: "12px",
           display: "flex",
@@ -81,12 +90,12 @@ export default function MissionLog({ events = [], auditLog = [], loading }) {
           gap: 6,
         }}
       >
-        {rows.length === 0 ? (
+        {displayRows.length === 0 ? (
           <div style={{ padding: "16px 0", color: "var(--text-dim)" }}>
             {loading ? "Polling global mission log..." : "No events recorded yet."}
           </div>
         ) : (
-          rows.slice(0, 60).map((r) => (
+          displayRows.map((r) => (
             <div key={r.key} style={{ display: "flex", gap: 12, borderBottom: "1px solid var(--border-light)", paddingBottom: 4 }}>
               <span style={{ color: "var(--text-dim)", minWidth: 70 }}>{fmtTime(r.ts)}</span>
               <span>{r.node}</span>
@@ -94,6 +103,30 @@ export default function MissionLog({ events = [], auditLog = [], loading }) {
           ))
         )}
       </div>
+
+      {totalPages > 1 && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, paddingTop: 8, borderTop: "1px solid var(--border-light)" }}>
+          <button
+            className="cx-btn cx-btn-sm cx-btn-ghost"
+            disabled={safePage === 0}
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            style={{ opacity: safePage === 0 ? 0.4 : 1 }}
+          >
+            ◀ Prev
+          </button>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--text-dim)" }}>
+            Page {safePage + 1} of {totalPages}
+          </span>
+          <button
+            className="cx-btn cx-btn-sm cx-btn-ghost"
+            disabled={safePage >= totalPages - 1}
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            style={{ opacity: safePage >= totalPages - 1 ? 0.4 : 1 }}
+          >
+            Next ▶
+          </button>
+        </div>
+      )}
     </div>
   );
 }
